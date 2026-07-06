@@ -9,7 +9,7 @@ const BreakoutDetector = require('./services/strategy/BreakoutDetector')
 
 // Configuration
 const config = {
-	port: process.env.BOT_PORT || 6010,
+	port: process.env.BOT_PORT || 6015,
 	host: 'localhost',
 	priceServiceUrl: process.env.PRICE_SERVICE_URL || 'http://localhost:6001',
 	atrSpikeUrl: process.env.ATR_SPIKE_URL || 'http://localhost:6004',
