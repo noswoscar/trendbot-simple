@@ -1,4 +1,4 @@
-// monitor.js - Simple Bot Monitor with Support/Resistance/ATR Tracking
+// monitor.js - Simple Bot Monitor
 // Run with: node monitor.js
 
 const axios = require('axios')
@@ -11,9 +11,7 @@ const config = {
 	levelsUrl: 'http://127.0.0.1:6006',
 	botUrl: 'http://127.0.0.1:6015',
 	checkInterval: 5000, // Check every 5 seconds
-	logFile: './monitor.log',
-	statsFile: './resup.txt',      // Support/Resistance extremes
-	atrFile: './atr.txt'           // ATR extremes
+	logFile: './monitor.log'
 }
 
 // State tracking
@@ -25,190 +23,6 @@ let lastATR = 0
 let errorCount = 0
 let lastErrorTime = 0
 let startTime = Date.now()
-
-// Extreme tracking
-let extremes = {
-	highestSupport: null,
-	lowestSupport: null,
-	highestResistance: null,
-	lowestResistance: null,
-	highestPrice: null,
-	lowestPrice: null,
-	updated: null
-}
-
-// ATR Extreme tracking
-let atrExtremes = {
-	highestATR: null,
-	lowestATR: null,
-	highestVolatility: null,
-	lowestVolatility: null,
-	updated: null
-}
-
-// Load extremes from file
-function loadExtremes() {
-	// Load Support/Resistance extremes
-	try {
-		if (fs.existsSync(config.statsFile)) {
-			const data = fs.readFileSync(config.statsFile, 'utf8')
-			const parsed = JSON.parse(data)
-			extremes = parsed
-			console.log(`📊 Loaded support/resistance extremes from file`)
-			console.log(`   Support: ${extremes.lowestSupport === null ? 'null' : extremes.lowestSupport} → ${extremes.highestSupport === null ? 'null' : extremes.highestSupport}`)
-			console.log(`   Resistance: ${extremes.lowestResistance === null ? 'null' : extremes.lowestResistance} → ${extremes.highestResistance === null ? 'null' : extremes.highestResistance}`)
-		} else {
-			console.log('📊 No support/resistance stats file found, starting fresh')
-			extremes = {
-				highestSupport: null,
-				lowestSupport: null,
-				highestResistance: null,
-				lowestResistance: null,
-				highestPrice: null,
-				lowestPrice: null,
-				updated: null
-			}
-		}
-	} catch (error) {
-		console.log('⚠️ Failed to load support/resistance stats file, starting fresh')
-		extremes = {
-			highestSupport: null,
-			lowestSupport: null,
-			highestResistance: null,
-			lowestResistance: null,
-			highestPrice: null,
-			lowestPrice: null,
-			updated: null
-		}
-	}
-
-	// Load ATR extremes
-	try {
-		if (fs.existsSync(config.atrFile)) {
-			const data = fs.readFileSync(config.atrFile, 'utf8')
-			const parsed = JSON.parse(data)
-			atrExtremes = parsed
-			console.log(`📊 Loaded ATR extremes from file`)
-			console.log(`   ATR: ${atrExtremes.lowestATR === null ? 'null' : atrExtremes.lowestATR} → ${atrExtremes.highestATR === null ? 'null' : atrExtremes.highestATR}`)
-			console.log(`   Volatility: ${atrExtremes.lowestVolatility === null ? 'null' : atrExtremes.lowestVolatility} → ${atrExtremes.highestVolatility === null ? 'null' : atrExtremes.highestVolatility}`)
-		} else {
-			console.log('📊 No ATR stats file found, starting fresh')
-			atrExtremes = {
-				highestATR: null,
-				lowestATR: null,
-				highestVolatility: null,
-				lowestVolatility: null,
-				updated: null
-			}
-		}
-	} catch (error) {
-		console.log('⚠️ Failed to load ATR stats file, starting fresh')
-		atrExtremes = {
-			highestATR: null,
-			lowestATR: null,
-			highestVolatility: null,
-			lowestVolatility: null,
-			updated: null
-		}
-	}
-}
-
-// Save extremes to file
-function saveExtremes() {
-	// Save Support/Resistance extremes
-	try {
-		extremes.updated = new Date().toISOString()
-		fs.writeFileSync(config.statsFile, JSON.stringify(extremes, null, 2))
-	} catch (error) {
-		console.error('Failed to save support/resistance extremes:', error.message)
-	}
-
-	// Save ATR extremes
-	try {
-		atrExtremes.updated = new Date().toISOString()
-		fs.writeFileSync(config.atrFile, JSON.stringify(atrExtremes, null, 2))
-	} catch (error) {
-		console.error('Failed to save ATR extremes:', error.message)
-	}
-}
-
-// Update extremes with new values
-function updateExtremes(price, support, resistance) {
-	let updated = false
-
-	// Update price extremes
-	if (price > 0) {
-		if (extremes.highestPrice === null || price > extremes.highestPrice) {
-			extremes.highestPrice = price
-			updated = true
-		}
-		if (extremes.lowestPrice === null || price < extremes.lowestPrice) {
-			extremes.lowestPrice = price
-			updated = true
-		}
-	}
-
-	// Update support extremes
-	if (support > 0) {
-		if (extremes.highestSupport === null || support > extremes.highestSupport) {
-			extremes.highestSupport = support
-			updated = true
-		}
-		if (extremes.lowestSupport === null || support < extremes.lowestSupport) {
-			extremes.lowestSupport = support
-			updated = true
-		}
-	}
-
-	// Update resistance extremes
-	if (resistance > 0) {
-		if (extremes.highestResistance === null || resistance > extremes.highestResistance) {
-			extremes.highestResistance = resistance
-			updated = true
-		}
-		if (extremes.lowestResistance === null || resistance < extremes.lowestResistance) {
-			extremes.lowestResistance = resistance
-			updated = true
-		}
-	}
-
-	if (updated) {
-		saveExtremes()
-	}
-}
-
-// Update ATR extremes
-function updateATRExtremes(atrValue, volatilityPercent) {
-	let updated = false
-
-	// Update ATR extremes
-	if (atrValue > 0) {
-		if (atrExtremes.highestATR === null || atrValue > atrExtremes.highestATR) {
-			atrExtremes.highestATR = atrValue
-			updated = true
-		}
-		if (atrExtremes.lowestATR === null || atrValue < atrExtremes.lowestATR) {
-			atrExtremes.lowestATR = atrValue
-			updated = true
-		}
-	}
-
-	// Update volatility extremes
-	if (volatilityPercent > 0) {
-		if (atrExtremes.highestVolatility === null || volatilityPercent > atrExtremes.highestVolatility) {
-			atrExtremes.highestVolatility = volatilityPercent
-			updated = true
-		}
-		if (atrExtremes.lowestVolatility === null || volatilityPercent < atrExtremes.lowestVolatility) {
-			atrExtremes.lowestVolatility = volatilityPercent
-			updated = true
-		}
-	}
-
-	if (updated) {
-		saveExtremes()
-	}
-}
 
 // Colors for console
 const colors = {
@@ -231,14 +45,6 @@ function logToFile(message) {
 // Print colored message
 function print(message, color = 'reset') {
 	console.log(`${colors[color]}${message}${colors.reset}`)
-}
-
-// Format null values for display
-function formatValue(value) {
-	if (value === null || value === undefined) {
-		return 'null'
-	}
-	return value.toFixed(2)
 }
 
 // Check service health
@@ -309,11 +115,6 @@ function printHeader() {
 	print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'cyan')
 	print(`  Started: ${new Date(startTime).toLocaleTimeString()}`, 'blue')
 	print(`  Uptime: ${Math.floor((Date.now() - startTime) / 1000)}s`, 'blue')
-	if (extremes.updated) {
-		print(`  Stats Updated: ${new Date(extremes.updated).toLocaleTimeString()}`, 'blue')
-	} else {
-		print(`  Stats Updated: Never`, 'blue')
-	}
 	print('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━', 'cyan')
 	console.log('')
 }
@@ -339,20 +140,6 @@ async function monitor() {
 				getLevels(),
 				getATR()
 			])
-
-			// Update extremes with current data
-			if (levels.ok) {
-				const price = levels.data.currentPrice || 0
-				const support = levels.data.support?.price || 0
-				const resistance = levels.data.resistance?.price || 0
-				updateExtremes(price, support, resistance)
-			}
-
-			if (atr.ok) {
-				const atrValue = atr.data.atr || 0
-				const volatilityPercent = atr.data.volatilityPercent || 0
-				updateATRExtremes(atrValue, volatilityPercent)
-			}
 
 			// Clear screen and print header
 			printHeader()
@@ -425,74 +212,6 @@ async function monitor() {
 				lastResistance = resistance
 				lastATR = atrValue
 			}
-
-			// =============================================
-			// ATR EXTREMES
-			// =============================================
-			print('📈 ATR EXTREMES:', 'yellow')
-			console.log('')
-
-			if (atrExtremes.lowestATR !== null && atrExtremes.highestATR !== null) {
-				print(`  📐 ATR Range: ${atrExtremes.lowestATR.toFixed(4)} → ${atrExtremes.highestATR.toFixed(4)}`, 'cyan')
-				const range = atrExtremes.highestATR - atrExtremes.lowestATR
-				print(`     ATR Range Width: ${range.toFixed(4)}`, 'cyan')
-			} else {
-				print(`  📐 ATR: null → null`, 'cyan')
-			}
-
-			if (atrExtremes.lowestVolatility !== null && atrExtremes.highestVolatility !== null) {
-				print(`  📊 Volatility Range: ${(atrExtremes.lowestVolatility * 100).toFixed(4)}% → ${(atrExtremes.highestVolatility * 100).toFixed(4)}%`, 'magenta')
-			} else {
-				print(`  📊 Volatility: null → null`, 'magenta')
-			}
-
-			if (atrExtremes.updated) {
-				print(`  📅 Last Updated: ${new Date(atrExtremes.updated).toLocaleString()}`, 'blue')
-			} else {
-				print(`  📅 Last Updated: Never`, 'blue')
-			}
-			console.log('')
-
-			// =============================================
-			// SUPPORT/RESISTANCE EXTREMES
-			// =============================================
-			print('📈 SUPPORT/RESISTANCE EXTREMES:', 'yellow')
-			console.log('')
-
-			// Support extremes
-			if (extremes.lowestSupport !== null && extremes.highestSupport !== null) {
-				print(`  🟢 Support Range: ${extremes.lowestSupport.toFixed(2)} → ${extremes.highestSupport.toFixed(2)}`, 'green')
-				const range = extremes.highestSupport - extremes.lowestSupport
-				print(`     Support Range Width: ${range.toFixed(2)} pts`, 'cyan')
-			} else {
-				print(`  🟢 Support: null → null`, 'green')
-			}
-
-			// Resistance extremes
-			if (extremes.lowestResistance !== null && extremes.highestResistance !== null) {
-				print(`  🔴 Resistance Range: ${extremes.lowestResistance.toFixed(2)} → ${extremes.highestResistance.toFixed(2)}`, 'red')
-				const range = extremes.highestResistance - extremes.lowestResistance
-				print(`     Resistance Range Width: ${range.toFixed(2)} pts`, 'cyan')
-			} else {
-				print(`  🔴 Resistance: null → null`, 'red')
-			}
-
-			// Price extremes
-			if (extremes.lowestPrice !== null && extremes.highestPrice !== null) {
-				print(`  💰 Price Range: ${extremes.lowestPrice.toFixed(2)} → ${extremes.highestPrice.toFixed(2)}`, 'cyan')
-				const range = extremes.highestPrice - extremes.lowestPrice
-				print(`     Price Range Width: ${range.toFixed(2)} pts`, 'cyan')
-			} else {
-				print(`  💰 Price: null → null`, 'cyan')
-			}
-
-			// Show last update time
-			if (extremes.updated) {
-				print(`  📅 Last Updated: ${new Date(extremes.updated).toLocaleString()}`, 'blue')
-			} else {
-				print(`  📅 Last Updated: Never`, 'blue')
-			}
-			console.log('')
 
 			// =============================================
 			// BOT STATUS
@@ -665,20 +384,15 @@ function sleep(ms) {
 // Handle exit
 process.on('SIGINT', () => {
 	print('\n\n👋 Shutting down monitor...', 'yellow')
-	saveExtremes()
 	logToFile('Monitor stopped')
 	process.exit(0)
 })
 
 process.on('SIGTERM', () => {
 	print('\n\n👋 Shutting down monitor...', 'yellow')
-	saveExtremes()
 	logToFile('Monitor stopped')
 	process.exit(0)
 })
-
-// Load existing extremes
-loadExtremes()
 
 // Start monitor
 console.log('')
@@ -693,8 +407,6 @@ print(`     Bot: ${config.botUrl}`, 'blue')
 console.log('')
 print(`  ⏱️ Check Interval: ${config.checkInterval / 1000}s`, 'yellow')
 print(`  📝 Log File: ${config.logFile}`, 'yellow')
-print(`  📊 Support/Resistance File: ${config.statsFile}`, 'yellow')
-print(`  📊 ATR File: ${config.atrFile}`, 'yellow')
 console.log('')
 print('  Press Ctrl+C to stop', 'yellow')
 console.log('')

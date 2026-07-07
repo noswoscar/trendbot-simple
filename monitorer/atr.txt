@@ -1,0 +1,7 @@
+{
+  "highestATR": 2.9399,
+  "lowestATR": 0.0565,
+  "highestVolatility": 0.0046,
+  "lowestVolatility": 0.0001,
+  "updated": "2026-07-07T13:16:18.855Z"
+}
