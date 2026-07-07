@@ -114,12 +114,24 @@ class BreakoutDetector {
 
 	/**
 	 * Extract ATR value from various data formats
+	 * FIXED: Properly handles baselines from /status endpoint
 	 */
 	extractATR(atrData) {
-		// Case 1: Data from /check endpoint (has atrResults)
+		if (!atrData) return null
+
+		// Case 1: Data from /status endpoint (has baselines) - THIS IS WHAT YOU'RE USING
+		// The baselines are already ATR values in price units
+		if (atrData.baselines) {
+			const baselines = atrData.baselines
+			// Use the baseline directly - it's already an ATR value
+			if (baselines['60']) return baselines['60']
+			if (baselines['300']) return baselines['300']
+			if (baselines['900']) return baselines['900']
+		}
+
+		// Case 2: Data from /check endpoint (has atrResults)
 		if (atrData.atrResults) {
 			const results = atrData.atrResults
-			// Try 60, then 300, then 900 period
 			if (results['60'] && results['60'].success) {
 				return results['60'].atr
 			}
@@ -129,15 +141,6 @@ class BreakoutDetector {
 			if (results['900'] && results['900'].success) {
 				return results['900'].atr
 			}
-		}
-
-		// Case 2: Data from /status endpoint (has baselines)
-		if (atrData.baselines) {
-			const baselines = atrData.baselines
-			// Baseline is average volatility, rough estimate of ATR
-			if (baselines['60']) return baselines['60'] * 0.5
-			if (baselines['300']) return baselines['300'] * 0.5
-			if (baselines['900']) return baselines['900'] * 0.5
 		}
 
 		// Case 3: Direct ATR value
