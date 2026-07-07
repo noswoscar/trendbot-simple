@@ -3,10 +3,11 @@
 class BreakoutDetector {
 	constructor(options = {}) {
 		// Keep the original nearThreshold as fallback
-		this.nearThreshold = options.nearThreshold || 80 // Points
+		this.nearThreshold = options.nearThreshold || 100 // Points
 
 		// New ATR-based settings
 		this.atrMultiplier = options.atrMultiplier || 1.5 // How many ATRs from level
+		this.atrScale = options.atrScale || 200 // Scale ATR to meaningful point values
 		this.minThreshold = options.minThreshold || 50 // Minimum threshold in points
 		this.maxThreshold = options.maxThreshold || 500 // Maximum threshold in points
 	}
@@ -93,6 +94,7 @@ class BreakoutDetector {
 
 	/**
 	 * Calculate threshold using ATR or fallback to fixed points
+	 * HIGHER ATR = HIGHER threshold = MORE trades
 	 */
 	calculateThreshold(atrData) {
 		// Default to fixed threshold
@@ -101,9 +103,10 @@ class BreakoutDetector {
 		// If we have ATR data, use it
 		if (atrData) {
 			const atrValue = this.extractATR(atrData)
-			if (atrValue) {
-				// Convert ATR to points threshold
-				const atrThreshold = atrValue * this.atrMultiplier
+			if (atrValue && atrValue > 0) {
+				// Scale ATR to meaningful point values
+				const scaledATR = atrValue * this.atrScale
+				const atrThreshold = scaledATR * this.atrMultiplier
 				// Clamp between min and max
 				threshold = Math.max(this.minThreshold, Math.min(this.maxThreshold, atrThreshold))
 			}
@@ -114,16 +117,13 @@ class BreakoutDetector {
 
 	/**
 	 * Extract ATR value from various data formats
-	 * FIXED: Properly handles baselines from /status endpoint
 	 */
 	extractATR(atrData) {
 		if (!atrData) return null
 
-		// Case 1: Data from /status endpoint (has baselines) - THIS IS WHAT YOU'RE USING
-		// The baselines are already ATR values in price units
+		// Case 1: Data from /status endpoint (has baselines)
 		if (atrData.baselines) {
 			const baselines = atrData.baselines
-			// Use the baseline directly - it's already an ATR value
 			if (baselines['60']) return baselines['60']
 			if (baselines['300']) return baselines['300']
 			if (baselines['900']) return baselines['900']
