@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # =============================================
-# TRENDBOT API TEST
+# TRENDBOT API TEST - MONITORING ONLY
 # =============================================
 
 HOST="${HOST:-127.0.0.1}"
@@ -10,10 +10,11 @@ BASE_URL="http://${HOST}:${PORT}"
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  🤖 TRENDBOT API TEST"
+echo "  🤖 TRENDBOT API TEST (MONITORING ONLY)"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 echo "  URL: ${BASE_URL}"
+echo "  ℹ️  Bot auto-trades - no manual trade endpoints"
 echo ""
 
 # Check if service is running
@@ -29,21 +30,12 @@ echo ""
 call() {
     local name="$1"
     local endpoint="$2"
-    local method="${3:-GET}"
-    local data="${4:-}"
     
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  ${method} ${endpoint}"
+    echo "  GET ${endpoint}"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
-    local response
-    if [[ "$method" == "POST" ]] && [[ -n "$data" ]]; then
-        response=$(curl -s -X POST -H 'Content-Type: application/json' -d "$data" "${BASE_URL}${endpoint}")
-    elif [[ "$method" == "POST" ]]; then
-        response=$(curl -s -X POST "${BASE_URL}${endpoint}")
-    else
-        response=$(curl -s "${BASE_URL}${endpoint}")
-    fi
+    local response=$(curl -s "${BASE_URL}${endpoint}")
     
     if echo "$response" | jq . >/dev/null 2>&1; then
         echo "$response" | jq '.'
@@ -53,19 +45,34 @@ call() {
     echo ""
 }
 
-# Run all tests
+# Run all monitoring endpoints
 call "Health" "/health"
 call "Decision" "/api/bot/decision"
 call "Position" "/api/bot/position"
 call "History" "/api/bot/history"
 call "Status" "/api/bot/status"
+call "Stats" "/api/bot/stats"
 
-# Test trade
-call "Trade (BUY)" "/api/bot/trade" "POST" '{"action":"BUY"}'
-call "Position after trade" "/api/bot/position"
-call "Exit trade" "/api/bot/trade" "POST" '{"action":"EXIT"}'
-call "Position after exit" "/api/bot/position"
-call "History after trades" "/api/bot/history"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo "  📊 QUICK SUMMARY"
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo ""
+
+# Extract and display key info from responses
+DECISION=$(curl -s "${BASE_URL}/api/bot/decision")
+ACTION=$(echo "$DECISION" | jq -r '.decision.action // "N/A"')
+CONFIDENCE=$(echo "$DECISION" | jq -r '.decision.confidence // 0')
+IN_POSITION=$(echo "$DECISION" | jq -r '.position // false')
+
+STATUS=$(curl -s "${BASE_URL}/api/bot/status")
+TRADES=$(echo "$STATUS" | jq -r '.tradesCount // 0')
+
+echo "  ${BOLD}Bot Status:${NC}"
+echo "    Action: ${ACTION}"
+echo "    Confidence: $(echo "$CONFIDENCE * 100" | bc -l 2>/dev/null)%"
+echo "    In Position: ${IN_POSITION}"
+echo "    Total Trades: ${TRADES}"
+echo ""
 
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo "  ✅ DONE"
