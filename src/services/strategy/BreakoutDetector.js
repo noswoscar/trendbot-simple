@@ -2,13 +2,21 @@
 
 class BreakoutDetector {
 	constructor(options = {}) {
-		// Change from 0.1 (10%) to a fixed point threshold
-		this.nearThreshold = options.nearThreshold || 80 // Points, not percentage
+		// Keep the original nearThreshold as fallback
+		this.nearThreshold = options.nearThreshold || 80 // Points
+
+		// New ATR-based settings
+		this.atrMultiplier = options.atrMultiplier || 1.5 // How many ATRs from level
+		this.minThreshold = options.minThreshold || 50 // Minimum threshold in points
+		this.maxThreshold = options.maxThreshold || 500 // Maximum threshold in points
 	}
 
-	detect(currentPrice, levels) {
+	detect(currentPrice, levels, atrData = null) {
 		const support = levels?.nearestSupport
 		const resistance = levels?.nearestResistance
+
+		// Calculate dynamic threshold (uses ATR if available)
+		const threshold = this.calculateThreshold(atrData)
 
 		// No levels
 		if (!support && !resistance) {
@@ -18,13 +26,14 @@ class BreakoutDetector {
 		// Only support
 		if (!resistance && support) {
 			const distance = currentPrice - support.price
-			// Remove percentage check, just use point threshold
-			if (distance < this.nearThreshold) {
+			if (distance < threshold) {
 				return {
 					type: 'BREAKDOWN',
 					level: support.price,
 					strength: support.strength || 0,
-					price: currentPrice
+					price: currentPrice,
+					distance: distance,
+					threshold: threshold
 				}
 			}
 			return { type: 'NONE', level: null, strength: 0 }
@@ -33,12 +42,14 @@ class BreakoutDetector {
 		// Only resistance
 		if (!support && resistance) {
 			const distance = resistance.price - currentPrice
-			if (distance < this.nearThreshold) {
+			if (distance < threshold) {
 				return {
 					type: 'BREAKOUT',
 					level: resistance.price,
 					strength: resistance.strength || 0,
-					price: currentPrice
+					price: currentPrice,
+					distance: distance,
+					threshold: threshold
 				}
 			}
 			return { type: 'NONE', level: null, strength: 0 }
@@ -48,9 +59,8 @@ class BreakoutDetector {
 		const distToSupport = currentPrice - support.price
 		const distToResistance = resistance.price - currentPrice
 
-		// Use threshold for both
-		const supportNear = distToSupport < this.nearThreshold
-		const resistanceNear = distToResistance < this.nearThreshold
+		const supportNear = distToSupport < threshold
+		const resistanceNear = distToResistance < threshold
 
 		if (supportNear && resistanceNear) {
 			return { type: 'VOLATILE', level: null, strength: 0 }
@@ -61,7 +71,9 @@ class BreakoutDetector {
 				type: 'BREAKOUT',
 				level: resistance.price,
 				strength: resistance.strength || 0,
-				price: currentPrice
+				price: currentPrice,
+				distance: distToResistance,
+				threshold: threshold
 			}
 		}
 
@@ -70,11 +82,70 @@ class BreakoutDetector {
 				type: 'BREAKDOWN',
 				level: support.price,
 				strength: support.strength || 0,
-				price: currentPrice
+				price: currentPrice,
+				distance: distToSupport,
+				threshold: threshold
 			}
 		}
 
 		return { type: 'NONE', level: null, strength: 0 }
+	}
+
+	/**
+	 * Calculate threshold using ATR or fallback to fixed points
+	 */
+	calculateThreshold(atrData) {
+		// Default to fixed threshold
+		let threshold = this.nearThreshold
+
+		// If we have ATR data, use it
+		if (atrData) {
+			const atrValue = this.extractATR(atrData)
+			if (atrValue) {
+				// Convert ATR to points threshold
+				const atrThreshold = atrValue * this.atrMultiplier
+				// Clamp between min and max
+				threshold = Math.max(this.minThreshold, Math.min(this.maxThreshold, atrThreshold))
+			}
+		}
+
+		return threshold
+	}
+
+	/**
+	 * Extract ATR value from various data formats
+	 */
+	extractATR(atrData) {
+		// Case 1: Data from /check endpoint (has atrResults)
+		if (atrData.atrResults) {
+			const results = atrData.atrResults
+			// Try 60, then 300, then 900 period
+			if (results['60'] && results['60'].success) {
+				return results['60'].atr
+			}
+			if (results['300'] && results['300'].success) {
+				return results['300'].atr
+			}
+			if (results['900'] && results['900'].success) {
+				return results['900'].atr
+			}
+		}
+
+		// Case 2: Data from /status endpoint (has baselines)
+		if (atrData.baselines) {
+			const baselines = atrData.baselines
+			// Baseline is average volatility, rough estimate of ATR
+			if (baselines['60']) return baselines['60'] * 0.5
+			if (baselines['300']) return baselines['300'] * 0.5
+			if (baselines['900']) return baselines['900'] * 0.5
+		}
+
+		// Case 3: Direct ATR value
+		if (atrData.atr) {
+			return atrData.atr
+		}
+
+		return null
 	}
 }
 
