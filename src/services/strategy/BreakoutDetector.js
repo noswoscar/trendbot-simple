@@ -2,7 +2,8 @@
 
 class BreakoutDetector {
 	constructor(options = {}) {
-		this.minDistanceMultiplier = options.minDistanceMultiplier || 0.1
+		// Change from 0.1 (10%) to a fixed point threshold
+		this.nearThreshold = options.nearThreshold || 150  // Points, not percentage
 	}
 
 	detect(currentPrice, levels) {
@@ -17,8 +18,8 @@ class BreakoutDetector {
 		// Only support
 		if (!resistance && support) {
 			const distance = currentPrice - support.price
-			const isNear = distance < support.price * this.minDistanceMultiplier
-			if (isNear && distance < 10) {
+			// Remove percentage check, just use point threshold
+			if (distance < this.nearThreshold) {
 				return {
 					type: 'BREAKDOWN',
 					level: support.price,
@@ -32,8 +33,7 @@ class BreakoutDetector {
 		// Only resistance
 		if (!support && resistance) {
 			const distance = resistance.price - currentPrice
-			const isNear = distance < resistance.price * this.minDistanceMultiplier
-			if (isNear && distance < 10) {
+			if (distance < this.nearThreshold) {
 				return {
 					type: 'BREAKOUT',
 					level: resistance.price,
@@ -47,8 +47,10 @@ class BreakoutDetector {
 		// Both support and resistance
 		const distToSupport = currentPrice - support.price
 		const distToResistance = resistance.price - currentPrice
-		const supportNear = distToSupport < 10
-		const resistanceNear = distToResistance < 10
+		
+		// Use threshold for both
+		const supportNear = distToSupport < this.nearThreshold
+		const resistanceNear = distToResistance < this.nearThreshold
 
 		if (supportNear && resistanceNear) {
 			return { type: 'VOLATILE', level: null, strength: 0 }

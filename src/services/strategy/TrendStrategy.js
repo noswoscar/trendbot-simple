@@ -2,7 +2,7 @@
 
 class TrendStrategy {
 	constructor(options = {}) {
-		this.minConfidence = options.minConfidence || 0.2
+		this.minConfidence = options.minConfidence || 0.05
 		this.breakoutDetector = options.breakoutDetector
 	}
 
