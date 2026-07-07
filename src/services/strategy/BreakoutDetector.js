@@ -3,7 +3,7 @@
 class BreakoutDetector {
 	constructor(options = {}) {
 		// Change from 0.1 (10%) to a fixed point threshold
-		this.nearThreshold = options.nearThreshold || 150  // Points, not percentage
+		this.nearThreshold = options.nearThreshold || 225 // Points, not percentage
 	}
 
 	detect(currentPrice, levels) {
@@ -47,7 +47,7 @@ class BreakoutDetector {
 		// Both support and resistance
 		const distToSupport = currentPrice - support.price
 		const distToResistance = resistance.price - currentPrice
-		
+
 		// Use threshold for both
 		const supportNear = distToSupport < this.nearThreshold
 		const resistanceNear = distToResistance < this.nearThreshold
