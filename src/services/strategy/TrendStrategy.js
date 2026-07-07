@@ -1,4 +1,4 @@
-// src/services/strategy/TrendStrategy.js - WITH AUTO-TRADING LOOP
+// src/services/strategy/TrendStrategy.js - WITH AUTO-TRADING LOOP & DEBUG LOGGING
 
 class TrendStrategy {
 	constructor(options = {}) {
@@ -19,6 +19,9 @@ class TrendStrategy {
 		// Loop control
 		this.checkInterval = options.checkInterval || 5000 // 5 seconds
 		this.loopInterval = null
+
+		// Debug flag
+		this.debug = options.debug !== undefined ? options.debug : true
 	}
 
 	// =============================================
@@ -64,7 +67,7 @@ class TrendStrategy {
 		try {
 			// Skip if no data gatherer
 			if (!this.dataGatherer) {
-				console.log('⚠️ No data gatherer - skipping tick')
+				if (this.debug) console.log('⚠️ No data gatherer - skipping tick')
 				return
 			}
 
@@ -80,6 +83,18 @@ class TrendStrategy {
 			// Make decision
 			const decision = this.makeDecision(data, this.currentPosition)
 			this.lastDecision = decision
+
+			if (this.debug) {
+				console.log(
+					`📊 TICK: Price=${currentPrice}, Action=${decision.action}, Confidence=${(decision.confidence * 100).toFixed(1)}%`
+				)
+				if (decision.signal) {
+					console.log(`   Signal: ${decision.signal.action} ${decision.signal.direction}`)
+				}
+				if (decision.reason && decision.reason.length > 0) {
+					console.log(`   Reasons: ${decision.reason.join('; ')}`)
+				}
+			}
 
 			// Check if we should enter
 			if ((decision.action === 'BUY' || decision.action === 'SELL') && !this.currentPosition) {
@@ -107,6 +122,7 @@ class TrendStrategy {
 			}
 		} catch (error) {
 			console.error('❌ Auto-trade error:', error.message)
+			if (this.debug) console.error(error.stack)
 		}
 	}
 
@@ -122,8 +138,16 @@ class TrendStrategy {
 		// 1. Check breakout
 		const breakout = this.breakoutDetector.detect(currentPrice, levels, atr)
 
+		if (this.debug) {
+			console.log(`   Breakout: type=${breakout.type}, level=${breakout.level}, strength=${breakout.strength}`)
+		}
+
 		// 2. Calculate confidence
 		const confidenceResult = this.calculateConfidence(breakout, levels, currentPrice)
+
+		if (this.debug) {
+			console.log(`   Confidence: ${confidenceResult.confidence}, reasons: ${confidenceResult.reasons.join('; ')}`)
+		}
 
 		// 3. If in position, check exit
 		if (currentPosition) {
@@ -139,9 +163,19 @@ class TrendStrategy {
 		}
 
 		// 4. Check entry
-		if (breakout.type !== 'NONE' && confidenceResult.confidence >= this.minConfidence) {
+		const hasBreakout = breakout.type !== 'NONE'
+		const meetsConfidence = confidenceResult.confidence >= this.minConfidence
+
+		if (this.debug) {
+			console.log(
+				`   Entry check: hasBreakout=${hasBreakout}, meetsConfidence=${meetsConfidence} (min=${this.minConfidence})`
+			)
+		}
+
+		if (hasBreakout && meetsConfidence) {
 			const signal = this.generateSignal(breakout, currentPrice)
 			if (signal) {
+				if (this.debug) console.log(`   ✅ GENERATED SIGNAL: ${signal.action}`)
 				return {
 					action: signal.action,
 					confidence: confidenceResult.confidence,
@@ -155,7 +189,7 @@ class TrendStrategy {
 		return {
 			action: 'HOLD',
 			confidence: confidenceResult.confidence,
-			reason: confidenceResult.reasons,
+			reason: confidenceResult.reasons.length > 0 ? confidenceResult.reasons : ['No decision yet'],
 			signal: null
 		}
 	}
@@ -208,6 +242,11 @@ class TrendStrategy {
 		}
 
 		const signal = decision.signal
+		if (!signal) {
+			console.log('❌ No signal in decision')
+			return false
+		}
+
 		const direction = signal.direction
 
 		const position = {
@@ -331,6 +370,12 @@ class TrendStrategy {
 		}
 
 		confidence = Math.min(confidence, 1.0)
+
+		// Make sure we have at least one reason
+		if (reasons.length === 0) {
+			reasons.push('No confidence factors')
+		}
+
 		return { confidence, reasons }
 	}
 
