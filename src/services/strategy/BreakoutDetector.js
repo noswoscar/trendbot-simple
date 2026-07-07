@@ -7,8 +7,9 @@ class BreakoutDetector {
 
 		// New ATR-based settings
 		this.atrMultiplier = options.atrMultiplier || 1.5 // How many ATRs from level
-		this.minThreshold = options.minThreshold || 50 // Minimum threshold in points
-		this.maxThreshold = options.maxThreshold || 500 // Maximum threshold in points
+		this.atrScale = options.atrScale || 200 // Scale ATR to meaningful point values
+		this.minThreshold = options.minThreshold || 30 // Minimum threshold in points
+		this.maxThreshold = options.maxThreshold || 300 // Maximum threshold in points
 	}
 
 	detect(currentPrice, levels, atrData = null) {
@@ -93,6 +94,8 @@ class BreakoutDetector {
 
 	/**
 	 * Calculate threshold using ATR or fallback to fixed points
+	 * HIGHER ATR = HIGHER threshold = MORE trades
+	 * LOWER ATR = LOWER threshold = FEWER trades
 	 */
 	calculateThreshold(atrData) {
 		// Default to fixed threshold
@@ -101,9 +104,13 @@ class BreakoutDetector {
 		// If we have ATR data, use it
 		if (atrData) {
 			const atrValue = this.extractATR(atrData)
-			if (atrValue) {
-				// Convert ATR to points threshold
-				const atrThreshold = atrValue * this.atrMultiplier
+			if (atrValue && atrValue > 0) {
+				// Scale ATR to meaningful point values
+				// ATR 0.25 * 200 = 50 points
+				// ATR 0.50 * 200 = 100 points
+				// ATR 0.75 * 200 = 150 points
+				const scaledATR = atrValue * this.atrScale
+				const atrThreshold = scaledATR * this.atrMultiplier
 				// Clamp between min and max
 				threshold = Math.max(this.minThreshold, Math.min(this.maxThreshold, atrThreshold))
 			}
@@ -119,11 +126,11 @@ class BreakoutDetector {
 	extractATR(atrData) {
 		if (!atrData) return null
 
-		// Case 1: Data from /status endpoint (has baselines) - THIS IS WHAT YOU'RE USING
-		// The baselines are already ATR values in price units
+		// Case 1: Data from /status endpoint (has baselines)
+		// This is what your DataGatherer returns
 		if (atrData.baselines) {
 			const baselines = atrData.baselines
-			// Use the baseline directly - it's already an ATR value
+			// Use baseline directly - it's already an ATR value
 			if (baselines['60']) return baselines['60']
 			if (baselines['300']) return baselines['300']
 			if (baselines['900']) return baselines['900']
