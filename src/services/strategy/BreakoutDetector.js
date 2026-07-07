@@ -3,7 +3,7 @@
 class BreakoutDetector {
 	constructor(options = {}) {
 		// Change from 0.1 (10%) to a fixed point threshold
-		this.nearThreshold = options.nearThreshold || 225 // Points, not percentage
+		this.nearThreshold = options.nearThreshold || 80 // Points, not percentage
 	}
 
 	detect(currentPrice, levels) {
