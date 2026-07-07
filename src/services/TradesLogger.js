@@ -31,23 +31,35 @@ class TradesLogger {
 	}
 
 	logExit(position) {
-		// Read the last line and append exit info
-		const lines = fs.readFileSync(this.logFile, 'utf8').split('\n')
+		// Read the file and find the last entry
+		const content = fs.readFileSync(this.logFile, 'utf8')
+		const lines = content.split('\n')
+
 		if (lines.length < 2) return
 
-		const lastLine = lines[lines.length - 2]
-		const parts = lastLine.split(',')
+		// Find the last incomplete entry (has entryPrice but no exitPrice)
+		let lastEntryIndex = -1
+		for (let i = lines.length - 2; i >= 0; i--) {
+			if (!lines[i]) continue
+			const parts = lines[i].split(',')
+			// Check if it has entryPrice (index 2) but no exitPrice (index 3)
+			if (parts.length > 3 && parts[2] && !parts[3]) {
+				lastEntryIndex = i
+				break
+			}
+		}
 
-		// Update with exit info
+		if (lastEntryIndex === -1) return
+
+		// Update the entry with exit info
+		const parts = lines[lastEntryIndex].split(',')
 		parts[3] = position.exitPrice || parts[3]
 		parts[5] = position.pnl || 0
 		parts[6] = 0 // fee
 		parts[7] = position.pnl || 0 // netPnL
-		parts[8] = position.entryTime || parts[8]
 		parts[9] = position.exitTime || new Date().toISOString()
 
-		// Write back
-		lines[lines.length - 2] = parts.join(',')
+		lines[lastEntryIndex] = parts.join(',')
 		fs.writeFileSync(this.logFile, lines.join('\n'))
 	}
 
@@ -98,18 +110,38 @@ class TradesLogger {
 	getHistory(limit = 100) {
 		if (!fs.existsSync(this.logFile)) return []
 
-		const lines = fs.readFileSync(this.logFile, 'utf8').split('\n')
-		if (lines.length < 2) return []
+		const content = fs.readFileSync(this.logFile, 'utf8')
+		const lines = content.split('\n').filter((line) => line.trim())
+
+		if (lines.length < 2) return [] // Only header or empty
 
 		const headers = lines[0].split(',')
 		const results = []
 
-		for (let i = lines.length - 2; i >= Math.max(0, lines.length - limit - 1); i--) {
-			if (!lines[i]) continue
+		// Start from the end (most recent first)
+		const startIdx = Math.max(1, lines.length - limit)
+		for (let i = lines.length - 1; i >= startIdx; i--) {
+			if (!lines[i] || lines[i].trim() === '') continue
 			const values = lines[i].split(',')
+			if (values.length < headers.length) continue
+
 			const entry = {}
 			headers.forEach((h, idx) => {
-				entry[h.trim()] = values[idx] || ''
+				const key = h.trim()
+				const val = values[idx] || ''
+				// Convert numeric values
+				if (
+					key === 'size' ||
+					key === 'grossPnL' ||
+					key === 'fee' ||
+					key === 'netPnL' ||
+					key === 'confidence' ||
+					key === 'levelStrength'
+				) {
+					entry[key] = parseFloat(val) || 0
+				} else {
+					entry[key] = val
+				}
 			})
 			results.push(entry)
 		}
@@ -118,12 +150,16 @@ class TradesLogger {
 	}
 
 	getStats() {
-		const history = this.getHistory(1000)
+		const history = this.getHistory()
 		if (history.length === 0) {
 			return { total: 0, wins: 0, losses: 0, winRate: 0, totalPnL: 0 }
 		}
 
-		const completed = history.filter((t) => t.exitPrice !== '' && t.exitPrice !== undefined)
+		// Only count completed trades (have exitPrice and netPnL)
+		const completed = history.filter(
+			(t) => t.exitPrice && t.exitPrice !== '' && t.netPnL !== undefined && t.netPnL !== null && t.netPnL !== ''
+		)
+
 		const total = completed.length
 		const wins = completed.filter((t) => parseFloat(t.netPnL || 0) > 0).length
 		const losses = completed.filter((t) => parseFloat(t.netPnL || 0) < 0).length
