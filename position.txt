@@ -1,0 +1,20 @@
+{
+  "position": {
+    "id": "1783459882024-LONG",
+    "direction": "LONG",
+    "entryPrice": 63460,
+    "entryTime": "2026-07-07T21:31:22.024Z",
+    "size": 100,
+    "exitPrice": null,
+    "exitTime": null,
+    "pnl": null,
+    "entryConfidence": 0.6000000000000001,
+    "entryReason": [
+      "📈 Breakout above 63693.71",
+      "✅ Very strong level"
+    ]
+  },
+  "pnl": 3198.9999999997963,
+  "currentPrice": 63491.99,
+  "timestamp": "2026-07-07T21:32:09.421Z"
+}

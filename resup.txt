@@ -1,0 +1,9 @@
+{
+  "highestSupport": 63693.70933333333,
+  "lowestSupport": 63000,
+  "highestResistance": 64000,
+  "lowestResistance": 63693.70933333333,
+  "highestPrice": 63845.78,
+  "lowestPrice": 63400,
+  "updated": "2026-07-07T21:32:11.083Z"
+}
