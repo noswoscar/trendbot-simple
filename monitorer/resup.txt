@@ -4,6 +4,6 @@
   "highestResistance": 64000,
   "lowestResistance": 63476,
   "highestPrice": 63543.83,
-  "lowestPrice": 63267.79,
-  "updated": "2026-07-07T13:16:18.855Z"
+  "lowestPrice": 63216.21,
+  "updated": "2026-07-07T13:21:45.126Z"
 }

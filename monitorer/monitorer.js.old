@@ -13,8 +13,7 @@ const config = {
 	checkInterval: 5000, // Check every 5 seconds
 	logFile: './monitor.log',
 	statsFile: './resup.txt',      // Support/Resistance extremes
-	atrFile: './atr.txt',           // ATR extremes
-	positionFile: './position.txt'  // Current position info
+	atrFile: './atr.txt'           // ATR extremes
 }
 
 // State tracking
@@ -26,10 +25,8 @@ let lastATR = 0
 let errorCount = 0
 let lastErrorTime = 0
 let startTime = Date.now()
-let currentPnL = 0
-let positionOpenTime = null
 
-// Extreme tracking - initialize with null
+// Extreme tracking
 let extremes = {
 	highestSupport: null,
 	lowestSupport: null,
@@ -51,20 +48,17 @@ let atrExtremes = {
 
 // Load extremes from file
 function loadExtremes() {
-	console.log('📊 Loading saved data...')
-	
 	// Load Support/Resistance extremes
 	try {
 		if (fs.existsSync(config.statsFile)) {
 			const data = fs.readFileSync(config.statsFile, 'utf8')
 			const parsed = JSON.parse(data)
 			extremes = parsed
-			console.log(`   ✅ Loaded support/resistance from file`)
-			console.log(`      Support: ${extremes.lowestSupport === null ? 'null' : extremes.lowestSupport.toFixed(2)} → ${extremes.highestSupport === null ? 'null' : extremes.highestSupport.toFixed(2)}`)
-			console.log(`      Resistance: ${extremes.lowestResistance === null ? 'null' : extremes.lowestResistance.toFixed(2)} → ${extremes.highestResistance === null ? 'null' : extremes.highestResistance.toFixed(2)}`)
-			console.log(`      Price: ${extremes.lowestPrice === null ? 'null' : extremes.lowestPrice.toFixed(2)} → ${extremes.highestPrice === null ? 'null' : extremes.highestPrice.toFixed(2)}`)
+			console.log(`📊 Loaded support/resistance extremes from file`)
+			console.log(`   Support: ${extremes.lowestSupport === null ? 'null' : extremes.lowestSupport} → ${extremes.highestSupport === null ? 'null' : extremes.highestSupport}`)
+			console.log(`   Resistance: ${extremes.lowestResistance === null ? 'null' : extremes.lowestResistance} → ${extremes.highestResistance === null ? 'null' : extremes.highestResistance}`)
 		} else {
-			console.log('   ℹ️  No support/resistance file found, starting fresh')
+			console.log('📊 No support/resistance stats file found, starting fresh')
 			extremes = {
 				highestSupport: null,
 				lowestSupport: null,
@@ -76,7 +70,7 @@ function loadExtremes() {
 			}
 		}
 	} catch (error) {
-		console.log('   ⚠️ Failed to load support/resistance file, starting fresh')
+		console.log('⚠️ Failed to load support/resistance stats file, starting fresh')
 		extremes = {
 			highestSupport: null,
 			lowestSupport: null,
@@ -94,11 +88,11 @@ function loadExtremes() {
 			const data = fs.readFileSync(config.atrFile, 'utf8')
 			const parsed = JSON.parse(data)
 			atrExtremes = parsed
-			console.log(`   ✅ Loaded ATR from file`)
-			console.log(`      ATR: ${atrExtremes.lowestATR === null ? 'null' : atrExtremes.lowestATR.toFixed(4)} → ${atrExtremes.highestATR === null ? 'null' : atrExtremes.highestATR.toFixed(4)}`)
-			console.log(`      Volatility: ${atrExtremes.lowestVolatility === null ? 'null' : (atrExtremes.lowestVolatility * 100).toFixed(4)}% → ${atrExtremes.highestVolatility === null ? 'null' : (atrExtremes.highestVolatility * 100).toFixed(4)}%`)
+			console.log(`📊 Loaded ATR extremes from file`)
+			console.log(`   ATR: ${atrExtremes.lowestATR === null ? 'null' : atrExtremes.lowestATR} → ${atrExtremes.highestATR === null ? 'null' : atrExtremes.highestATR}`)
+			console.log(`   Volatility: ${atrExtremes.lowestVolatility === null ? 'null' : atrExtremes.lowestVolatility} → ${atrExtremes.highestVolatility === null ? 'null' : atrExtremes.highestVolatility}`)
 		} else {
-			console.log('   ℹ️  No ATR file found, starting fresh')
+			console.log('📊 No ATR stats file found, starting fresh')
 			atrExtremes = {
 				highestATR: null,
 				lowestATR: null,
@@ -108,7 +102,7 @@ function loadExtremes() {
 			}
 		}
 	} catch (error) {
-		console.log('   ⚠️ Failed to load ATR file, starting fresh')
+		console.log('⚠️ Failed to load ATR stats file, starting fresh')
 		atrExtremes = {
 			highestATR: null,
 			lowestATR: null,
@@ -117,8 +111,6 @@ function loadExtremes() {
 			updated: null
 		}
 	}
-	
-	console.log('')
 }
 
 // Save extremes to file
@@ -137,21 +129,6 @@ function saveExtremes() {
 		fs.writeFileSync(config.atrFile, JSON.stringify(atrExtremes, null, 2))
 	} catch (error) {
 		console.error('Failed to save ATR extremes:', error.message)
-	}
-}
-
-// Save position to file
-function savePosition(position, pnl, currentPrice) {
-	try {
-		const data = {
-			position: position,
-			pnl: pnl,
-			currentPrice: currentPrice,
-			timestamp: new Date().toISOString()
-		}
-		fs.writeFileSync(config.positionFile, JSON.stringify(data, null, 2))
-	} catch (error) {
-		console.error('Failed to save position:', error.message)
 	}
 }
 
@@ -233,36 +210,6 @@ function updateATRExtremes(atrValue, volatilityPercent) {
 	}
 }
 
-// Calculate PnL
-function calculatePnL(position, currentPrice) {
-	if (!position) return 0
-	const direction = position.direction
-	const entryPrice = position.entryPrice
-	const size = position.size || 100
-
-	if (direction === 'LONG') {
-		return (currentPrice - entryPrice) * size
-	} else if (direction === 'SHORT') {
-		return (entryPrice - currentPrice) * size
-	}
-	return 0
-}
-
-// Format duration
-function formatDuration(ms) {
-	if (!ms) return 'N/A'
-	const seconds = Math.floor(ms / 1000)
-	const minutes = Math.floor(seconds / 60)
-	const hours = Math.floor(minutes / 60)
-	if (hours > 0) {
-		return `${hours}h ${minutes % 60}m ${seconds % 60}s`
-	} else if (minutes > 0) {
-		return `${minutes}m ${seconds % 60}s`
-	} else {
-		return `${seconds}s`
-	}
-}
-
 // Colors for console
 const colors = {
 	reset: '\x1b[0m',
@@ -284,6 +231,14 @@ function logToFile(message) {
 // Print colored message
 function print(message, color = 'reset') {
 	console.log(`${colors[color]}${message}${colors.reset}`)
+}
+
+// Format null values for display
+function formatValue(value) {
+	if (value === null || value === undefined) {
+		return 'null'
+	}
+	return value.toFixed(2)
 }
 
 // Check service health
@@ -469,47 +424,6 @@ async function monitor() {
 				lastSupport = support
 				lastResistance = resistance
 				lastATR = atrValue
-			}
-
-			// =============================================
-			// CURRENT POSITION
-			// =============================================
-			if (botStatus.ok && botStatus.data.inPosition && botStatus.data.position) {
-				const pos = botStatus.data.position
-				const currentPrice = levels.ok ? levels.data.currentPrice : pos.entryPrice
-				const pnl = calculatePnL(pos, currentPrice)
-				currentPnL = pnl
-				
-				if (!positionOpenTime) {
-					positionOpenTime = new Date(pos.entryTime).getTime()
-				}
-				const duration = Date.now() - positionOpenTime
-				
-				print('📊 CURRENT POSITION:', 'yellow')
-				console.log('')
-				print(`  📈 Direction: ${pos.direction}`, pos.direction === 'LONG' ? 'green' : 'red')
-				print(`  💰 Entry: ${pos.entryPrice}`, 'cyan')
-				print(`  💰 Current: ${currentPrice.toFixed(2)}`, 'cyan')
-				const pnlColor = pnl >= 0 ? 'green' : 'red'
-				print(`  📊 PnL: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}`, pnlColor)
-				if (pos.size) {
-					print(`  📦 Size: ${pos.size}`, 'cyan')
-				}
-				print(`  ⏱️ Open Time: ${formatDuration(duration)}`, 'cyan')
-				console.log('')
-				
-				// Save position to file
-				savePosition(pos, pnl, currentPrice)
-			} else {
-				if (positionOpenTime) {
-					positionOpenTime = null
-				}
-				// Clear position file if no position
-				if (fs.existsSync(config.positionFile)) {
-					try {
-						fs.writeFileSync(config.positionFile, JSON.stringify({ position: null, pnl: 0, timestamp: new Date().toISOString() }, null, 2))
-					} catch (e) {}
-				}
 			}
 
 			// =============================================
@@ -763,7 +677,7 @@ process.on('SIGTERM', () => {
 	process.exit(0)
 })
 
-// Load existing extremes BEFORE starting
+// Load existing extremes
 loadExtremes()
 
 // Start monitor
@@ -781,7 +695,6 @@ print(`  ⏱️ Check Interval: ${config.checkInterval / 1000}s`, 'yellow')
 print(`  📝 Log File: ${config.logFile}`, 'yellow')
 print(`  📊 Support/Resistance File: ${config.statsFile}`, 'yellow')
 print(`  📊 ATR File: ${config.atrFile}`, 'yellow')
-print(`  📊 Position File: ${config.positionFile}`, 'yellow')
 console.log('')
 print('  Press Ctrl+C to stop', 'yellow')
 console.log('')

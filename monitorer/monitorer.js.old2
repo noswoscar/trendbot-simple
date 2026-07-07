@@ -13,8 +13,7 @@ const config = {
 	checkInterval: 5000, // Check every 5 seconds
 	logFile: './monitor.log',
 	statsFile: './resup.txt',      // Support/Resistance extremes
-	atrFile: './atr.txt',           // ATR extremes
-	positionFile: './position.txt'  // Current position info
+	atrFile: './atr.txt'           // ATR extremes
 }
 
 // State tracking
@@ -26,8 +25,6 @@ let lastATR = 0
 let errorCount = 0
 let lastErrorTime = 0
 let startTime = Date.now()
-let currentPnL = 0
-let positionOpenTime = null
 
 // Extreme tracking - initialize with null
 let extremes = {
@@ -140,21 +137,6 @@ function saveExtremes() {
 	}
 }
 
-// Save position to file
-function savePosition(position, pnl, currentPrice) {
-	try {
-		const data = {
-			position: position,
-			pnl: pnl,
-			currentPrice: currentPrice,
-			timestamp: new Date().toISOString()
-		}
-		fs.writeFileSync(config.positionFile, JSON.stringify(data, null, 2))
-	} catch (error) {
-		console.error('Failed to save position:', error.message)
-	}
-}
-
 // Update extremes with new values
 function updateExtremes(price, support, resistance) {
 	let updated = false
@@ -230,36 +212,6 @@ function updateATRExtremes(atrValue, volatilityPercent) {
 
 	if (updated) {
 		saveExtremes()
-	}
-}
-
-// Calculate PnL
-function calculatePnL(position, currentPrice) {
-	if (!position) return 0
-	const direction = position.direction
-	const entryPrice = position.entryPrice
-	const size = position.size || 100
-
-	if (direction === 'LONG') {
-		return (currentPrice - entryPrice) * size
-	} else if (direction === 'SHORT') {
-		return (entryPrice - currentPrice) * size
-	}
-	return 0
-}
-
-// Format duration
-function formatDuration(ms) {
-	if (!ms) return 'N/A'
-	const seconds = Math.floor(ms / 1000)
-	const minutes = Math.floor(seconds / 60)
-	const hours = Math.floor(minutes / 60)
-	if (hours > 0) {
-		return `${hours}h ${minutes % 60}m ${seconds % 60}s`
-	} else if (minutes > 0) {
-		return `${minutes}m ${seconds % 60}s`
-	} else {
-		return `${seconds}s`
 	}
 }
 
@@ -469,47 +421,6 @@ async function monitor() {
 				lastSupport = support
 				lastResistance = resistance
 				lastATR = atrValue
-			}
-
-			// =============================================
-			// CURRENT POSITION
-			// =============================================
-			if (botStatus.ok && botStatus.data.inPosition && botStatus.data.position) {
-				const pos = botStatus.data.position
-				const currentPrice = levels.ok ? levels.data.currentPrice : pos.entryPrice
-				const pnl = calculatePnL(pos, currentPrice)
-				currentPnL = pnl
-				
-				if (!positionOpenTime) {
-					positionOpenTime = new Date(pos.entryTime).getTime()
-				}
-				const duration = Date.now() - positionOpenTime
-				
-				print('📊 CURRENT POSITION:', 'yellow')
-				console.log('')
-				print(`  📈 Direction: ${pos.direction}`, pos.direction === 'LONG' ? 'green' : 'red')
-				print(`  💰 Entry: ${pos.entryPrice}`, 'cyan')
-				print(`  💰 Current: ${currentPrice.toFixed(2)}`, 'cyan')
-				const pnlColor = pnl >= 0 ? 'green' : 'red'
-				print(`  📊 PnL: ${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}`, pnlColor)
-				if (pos.size) {
-					print(`  📦 Size: ${pos.size}`, 'cyan')
-				}
-				print(`  ⏱️ Open Time: ${formatDuration(duration)}`, 'cyan')
-				console.log('')
-				
-				// Save position to file
-				savePosition(pos, pnl, currentPrice)
-			} else {
-				if (positionOpenTime) {
-					positionOpenTime = null
-				}
-				// Clear position file if no position
-				if (fs.existsSync(config.positionFile)) {
-					try {
-						fs.writeFileSync(config.positionFile, JSON.stringify({ position: null, pnl: 0, timestamp: new Date().toISOString() }, null, 2))
-					} catch (e) {}
-				}
 			}
 
 			// =============================================
@@ -781,7 +692,6 @@ print(`  ⏱️ Check Interval: ${config.checkInterval / 1000}s`, 'yellow')
 print(`  📝 Log File: ${config.logFile}`, 'yellow')
 print(`  📊 Support/Resistance File: ${config.statsFile}`, 'yellow')
 print(`  📊 ATR File: ${config.atrFile}`, 'yellow')
-print(`  📊 Position File: ${config.positionFile}`, 'yellow')
 console.log('')
 print('  Press Ctrl+C to stop', 'yellow')
 console.log('')
